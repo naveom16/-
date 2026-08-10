@@ -535,7 +535,7 @@
 
         // ============================================
         const GOOGLE_SHEETS_API_KEY = 'AIzaSyBS6szD1amZmXHOoEEbpJlh4RGl2z1nfv8';
-        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1yHcuYs2eSmwkW43488OgopRg53tbmBFqIk4UAZ1PzZY/edit?usp=sharing';
+        const GOOGLE_SHEET_ID = '1yHcuYs2eSmwkW43488OgopRg53tbmBFqIk4UAZ1PzZY';
         // ============================================
         
         let dataList = JSON.parse(localStorage.getItem('micDataList')) || [];
@@ -847,12 +847,12 @@
                 return;
             }
             
-            if (!GOOGLE_SHEET_URL || GOOGLE_SHEET_URL === 'YOUR_SHEET_URL_HERE') {
-                showNotification('กรุณาตั้งค่า Google Sheet URL ในโค้ดก่อน', 'error');
+            if (!GOOGLE_SHEET_ID) {
+                showNotification('กรุณาตั้งค่า Google Sheet ID ในโค้ดก่อน', 'error');
                 return;
             }
             
-            sheetId = extractSheetId(GOOGLE_SHEET_URL);
+            sheetId = GOOGLE_SHEET_ID;
             if (!sheetId) {
                 showNotification('รูปแบบ Google Sheets URL ไม่ถูกต้อง', 'error');
                 return;

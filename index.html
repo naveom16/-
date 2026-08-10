@@ -87,6 +87,7 @@
         
         .form-group {
             margin-bottom: 20px;
+            position: relative;
         }
         
         label {
@@ -310,6 +311,75 @@
             display: block;
         }
         
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+        
+        .autocomplete-list.active {
+            display: block;
+        }
+        
+        .autocomplete-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .autocomplete-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        
+        .sheet-guide {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .sheet-guide h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .sheet-guide table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        .sheet-guide th,
+        .sheet-guide td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            font-size: 14px;
+        }
+        
+        .sheet-guide th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .sheet-guide tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
         @media (max-width: 600px) {
             .header h1 {
                 font-size: 20px;
@@ -330,6 +400,15 @@
             .tabs {
                 font-size: 14px;
             }
+            
+            .sheet-guide table {
+                font-size: 12px;
+            }
+            
+            .sheet-guide th,
+            .sheet-guide td {
+                padding: 6px;
+            }
         }
     </style>
 </head>
@@ -339,7 +418,7 @@
             <h1>แบบสำรวจข้อมูลการใช้งานคลื่นความถี่ไมโครโฟนไร้สาย</h1>
             <p>กรุณากรอกข้อมูลไมโครโฟนไร้สายของหน่วยงานท่าน<br>
             เพื่อใช้ในการรวบรวมฐานข้อมูลและวางแผนการบริหารจัดการคลื่นความถี่<br>
-            <strong>Contact:</strong> library@nrru.ac.th</p>
+           
         </div>
         
         <div class="tabs">
@@ -353,7 +432,7 @@
                 <form id="micForm">
                     <div class="form-group">
                         <label>ชื่อหน่วยงาน / คณะ / สำนัก <span class="required">*</span></label>
-                        <select id="organization" required onchange="handleOrgChange()">
+                        <select id="organization" required onchange="handleOrgChange(); autoFillFromOrg()">
                             <option value="">-- กรุณาเลือกหน่วยงาน --</option>
                             <option value="คณะครุศาสตร์">คณะครุศาสตร์</option>
                             <option value="คณะมนุษยศาสตร์และสังคมศาสตร์">คณะมนุษยศาสตร์และสังคมศาสตร์</option>
@@ -377,13 +456,15 @@
                             <option value="อื่นๆ">อื่นๆ / ศูนย์ , กอง</option>
                         </select>
                         <div class="other-org-input" id="otherOrgInput">
-                            <input type="text" id="otherOrganization" placeholder="กรุณากรอกชื่อหน่วยงาน/ศูนย์/กอง">
+                            <input type="text" id="otherOrganization" placeholder="กรุณากรอกชื่อหน่วยงาน/ศูนย์/กอง" oninput="handleOtherOrgInput()">
+                            <div class="autocomplete-list" id="otherOrgAutocomplete"></div>
                         </div>
                     </div>
                     
                     <div class="form-group">
-                        <label>ชื่อ–นามสกุล ของผู้ให้ข้อมูล <span class="required">*</span></label>
-                        <input type="text" id="contactName" required placeholder="ชื่อ นามสกุล">
+                        <label>ชื่อผู้ให้ข้อมูล <span class="required">*</span></label>
+                        <input type="text" id="contactName" required placeholder="ชื่อ นามสกุล" oninput="autoFillFromContact()">
+                        <div class="autocomplete-list" id="contactAutocomplete"></div>
                     </div>
                     
                     <div class="form-group">
@@ -398,7 +479,10 @@
                     
                     <div class="form-group">
                         <label>ปีที่จัดซื้อหรือปีที่เริ่มใช้งาน <span class="required">*</span></label>
-                        <input type="number" id="year" required min="2000" max="2099" placeholder="เช่น 2023">
+                        <input type="number" id="year" required min="2400" max="2700" placeholder="เช่น 2566" oninput="convertYearToCE()">
+                        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                            ปี พ.ศ. (ระบบจะแปลงเป็น ค.ศ. อัตโนมัติ)
+                        </div>
                     </div>
                     
                     <div class="form-group">
@@ -448,10 +532,10 @@
     <script>
         // ============================================
         // Google Sheets Configuration
-        // แก้ไขค่าตรงนี้เท่านั้น ไม่ต้องแสดงให้ user เห็น
+
         // ============================================
-        const GOOGLE_SHEETS_API_KEY = 'YOUR_API_KEY_HERE';
-        const GOOGLE_SHEET_URL = 'YOUR_SHEET_URL_HERE';
+        const GOOGLE_SHEETS_API_KEY = 'AIzaSyBS6szD1amZmXHOoEEbpJlh4RGl2z1nfv8';
+        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1yHcuYs2eSmwkW43488OgopRg53tbmBFqIk4UAZ1PzZY/edit?usp=sharing';
         // ============================================
         
         let dataList = JSON.parse(localStorage.getItem('micDataList')) || [];
@@ -488,6 +572,17 @@
             return match ? match[1] : null;
         }
         
+        function convertYearToCE() {
+            const yearInput = document.getElementById('year');
+            const beYear = parseInt(yearInput.value);
+            if (beYear >= 2400 && beYear <= 2700) {
+                const ceYear = beYear - 543;
+                yearInput.setAttribute('data-ce-year', ceYear);
+            } else {
+                yearInput.removeAttribute('data-ce-year');
+            }
+        }
+        
         function handleOrgChange() {
             const orgSelect = document.getElementById('organization');
             const otherInput = document.getElementById('otherOrgInput');
@@ -495,10 +590,93 @@
             if (orgSelect.value === 'อื่นๆ') {
                 otherInput.classList.add('active');
                 document.getElementById('otherOrganization').required = true;
+                document.getElementById('otherOrganization').focus();
             } else {
                 otherInput.classList.remove('active');
                 document.getElementById('otherOrganization').required = false;
                 document.getElementById('otherOrganization').value = '';
+            }
+        }
+        
+        function handleOtherOrgInput() {
+            const value = document.getElementById('otherOrganization').value.toLowerCase();
+            const autocompleteList = document.getElementById('otherOrgAutocomplete');
+            
+            if (value.length < 1) {
+                autocompleteList.classList.remove('active');
+                return;
+            }
+            
+            const uniqueOrgs = [...new Set(dataList.map(item => item.organization))];
+            const matches = uniqueOrgs.filter(org => org.toLowerCase().includes(value));
+            
+            if (matches.length > 0) {
+                autocompleteList.innerHTML = matches.slice(0, 5).map(org => 
+                    `<div class="autocomplete-item" onclick="selectOtherOrg('${org}')">${org}</div>`
+                ).join('');
+                autocompleteList.classList.add('active');
+            } else {
+                autocompleteList.classList.remove('active');
+            }
+        }
+        
+        function selectOtherOrg(org) {
+            document.getElementById('otherOrganization').value = org;
+            document.getElementById('otherOrgAutocomplete').classList.remove('active');
+            autoFillFromOrg();
+        }
+        
+        function autoFillFromOrg() {
+            const org = document.getElementById('organization').value;
+            if (!org || org === 'อื่นๆ') return;
+            
+            const lastRecord = [...dataList].reverse().find(item => item.organization === org);
+            if (lastRecord) {
+                const contactInput = document.getElementById('contactName');
+                if (!contactInput.value) {
+                    contactInput.value = lastRecord.contactName;
+                }
+            }
+        }
+        
+        function autoFillFromContact() {
+            const value = document.getElementById('contactName').value.trim();
+            const autocompleteList = document.getElementById('contactAutocomplete');
+            
+            if (value.length < 2) {
+                autocompleteList.classList.remove('active');
+                return;
+            }
+            
+            const uniqueContacts = [...new Set(dataList.map(item => item.contactName))];
+            const matches = uniqueContacts.filter(name => 
+                name.toLowerCase().includes(value.toLowerCase())
+            );
+            
+            if (matches.length > 0) {
+                autocompleteList.innerHTML = matches.slice(0, 5).map(name => 
+                    `<div class="autocomplete-item" onclick="selectContact('${name}')">${name}</div>`
+                ).join('');
+                autocompleteList.classList.add('active');
+                
+                const org = dataList.find(item => item.contactName === matches[0])?.organization;
+                if (org && document.getElementById('organization').value === '') {
+                    document.getElementById('organization').value = org;
+                    handleOrgChange();
+                }
+            } else {
+                autocompleteList.classList.remove('active');
+            }
+        }
+        
+        function selectContact(name) {
+            document.getElementById('contactName').value = name;
+            document.getElementById('contactAutocomplete').classList.remove('active');
+            
+            const org = dataList.find(item => item.contactName === name)?.organization;
+            if (org) {
+                document.getElementById('organization').value = org;
+                handleOrgChange();
             }
         }
         
@@ -514,13 +692,20 @@
                 }
             }
             
+            const yearInput = document.getElementById('year');
+            let year = yearInput.value;
+            const ceYear = yearInput.getAttribute('data-ce-year');
+            if (ceYear) {
+                year = ceYear;
+            }
+            
             const data = {
                 id: editingId || generateId(),
                 organization: organization,
                 contactName: document.getElementById('contactName').value.trim(),
                 brand: document.getElementById('brand').value.trim(),
                 model: document.getElementById('model').value.trim(),
-                year: document.getElementById('year').value.trim(),
+                year: year,
                 frequency: document.getElementById('frequency').value.trim(),
                 location: document.getElementById('location').value.trim(),
                 createdAt: editingId ? (dataList.find(d => d.id === editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
@@ -538,16 +723,33 @@
             
             localStorage.setItem('micDataList', JSON.stringify(dataList));
             
+            localStorage.setItem('lastOrganization', organization);
+            localStorage.setItem('lastContactName', document.getElementById('contactName').value.trim());
+            
             showNotification(editingId ? 'แก้ไขข้อมูลเรียบร้อยแล้ว' : 'บันทึกข้อมูลเรียบร้อยแล้ว', 'success');
             clearForm();
             updateCount();
         });
+        
+        function autoFillLastData() {
+            const lastOrg = localStorage.getItem('lastOrganization');
+            const lastContact = localStorage.getItem('lastContactName');
+            
+            if (lastOrg) {
+                document.getElementById('organization').value = lastOrg;
+                handleOrgChange();
+            }
+            if (lastContact) {
+                document.getElementById('contactName').value = lastContact;
+            }
+        }
         
         function clearForm() {
             document.getElementById('micForm').reset();
             document.getElementById('otherOrgInput').classList.remove('active');
             document.getElementById('otherOrganization').required = false;
             editingId = null;
+            autoFillLastData();
         }
         
         function deleteItem(id) {
@@ -568,7 +770,11 @@
                 document.getElementById('contactName').value = item.contactName;
                 document.getElementById('brand').value = item.brand;
                 document.getElementById('model').value = item.model;
-                document.getElementById('year').value = item.year;
+                
+                const beYear = parseInt(item.year) + 543;
+                document.getElementById('year').value = beYear;
+                document.getElementById('year').setAttribute('data-ce-year', item.year);
+                
                 document.getElementById('frequency').value = item.frequency;
                 document.getElementById('location').value = item.location;
                 
@@ -609,10 +815,10 @@
                         </div>
                         <div class="data-item-details">
                             <div><strong>หน่วยงาน:</strong> ${item.organization}</div>
-                            <div><strong>ผู้ติดต่อ:</strong> ${item.contactName}</div>
+                            <div><strong>ชื่อผู้ให้ข้อมูล:</strong> ${item.contactName}</div>
                             <div><strong>ยี่ห้อ:</strong> ${item.brand}</div>
                             <div><strong>รุ่น:</strong> ${item.model}</div>
-                            <div><strong>ปีที่จัดซื้อ:</strong> ${item.year}</div>
+                            <div><strong>ปีที่จัดซื้อ:</strong> ${parseInt(item.year) + 543}</div>
                             <div><strong>คลื่นความถี่:</strong> ${item.frequency}</div>
                             <div><strong>สถานที่ติดตั้ง:</strong> ${item.location}</div>
                         </div>
@@ -663,13 +869,13 @@
                 const sheetName = 'Sheet1';
                 
                 const values = [
-                    ['หน่วยงาน', 'ผู้ติดต่อ', 'ยี่ห้อ', 'รุ่น', 'ปีที่จัดซื้อ', 'คลื่นความถี่', 'สถานที่ติดตั้ง', 'วันที่บันทึก'],
+                    ['หน่วยงาน', 'ชื่อผู้ให้ข้อมูล', 'ยี่ห้อ', 'รุ่น', 'ปีที่จัดซื้อ', 'คลื่นความถี่', 'สถานที่ติดตั้ง', 'วันที่บันทึก'],
                     ...dataList.map(item => [
                         item.organization,
                         item.contactName,
                         item.brand,
                         item.model,
-                        item.year,
+                        parseInt(item.year) + 543,
                         item.frequency,
                         item.location,
                         new Date(item.createdAt).toLocaleDateString('th-TH')
@@ -692,6 +898,10 @@
                 if (response.ok) {
                     const result = await response.json();
                     showNotification(`ส่งข้อมูล ${dataList.length} รายการสำเร็จ! อัปเดต ${result.updates.updatedRows} แถว`, 'success');
+                } else if (response.status === 401) {
+                    showNotification('Unauthorized: ตรวจสอบ API Key และสิทธิ์ Sheet (ต้องเป็น Anyone with the link can edit)', 'error');
+                } else if (response.status === 403) {
+                    showNotification('Forbidden: ตรวจสอบว่าเปิดใช้งาน Google Sheets API ใน Cloud Console แล้ว', 'error');
                 } else {
                     const error = await response.json();
                     showNotification('ส่งข้อมูลไม่สำเร็จ: ' + (error.error.message || 'Unknown error'), 'error');
@@ -701,6 +911,13 @@
             }
         }
         
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.form-group')) {
+                document.querySelectorAll('.autocomplete-list').forEach(el => el.classList.remove('active'));
+            }
+        });
+        
+        autoFillLastData();
         updateCount();
     </script>
 </body>

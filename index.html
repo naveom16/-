@@ -302,6 +302,81 @@
             display: block;
         }
         
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        
+        .popup-overlay.active {
+            display: flex;
+        }
+        
+        .popup {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: popupIn 0.3s ease-out;
+        }
+        
+        @keyframes popupIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        .popup-icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+        
+        .popup-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #27ae60;
+            margin-bottom: 10px;
+        }
+        
+        .popup-message {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .popup-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .popup-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
         .other-org-input {
             margin-top: 10px;
             display: none;
@@ -529,12 +604,21 @@
     
     <div id="notification" class="notification"></div>
     
+    <div class="popup-overlay" id="popupOverlay">
+        <div class="popup">
+            <div class="popup-icon">✅</div>
+            <div class="popup-title" id="popupTitle">บันทึกข้อมูลสำเร็จ</div>
+            <div class="popup-message" id="popupMessage">ข้อมูลถูกบันทึกไปยัง Google Sheet เรียบร้อยแล้ว</div>
+            <button class="popup-button" onclick="closePopup()">ตกลง</button>
+        </div>
+    </div>
+    
     <script>
         // ============================================
         // Google Apps Script Webhook
         // ตั้งค่า Web App URL จาก Google Apps Script
         // ============================================
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw8gbsDn4PFFNv4FavpBqCbjDsaf6G-ST8A64v8HGU8SyYTOTGugNxRD4Jb5YNrIcXa/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwCKjlHHsGDX8L6PvhRTqx6pZbGwGIgKSp-d14kLgMJOnlPnAy6UcrKD0m28w5gGIUf/exec';
         // ============================================
         
         let dataList = JSON.parse(localStorage.getItem('micDataList')) || [];
@@ -679,7 +763,19 @@
             }
         }
         
-        document.getElementById('micForm').addEventListener('submit', function(e) {
+        function isDuplicate(data) {
+            return dataList.some(item => 
+                item.organization === data.organization &&
+                item.contactName === data.contactName &&
+                item.brand === data.brand &&
+                item.model === data.model &&
+                item.year === data.year &&
+                item.frequency === data.frequency &&
+                item.location === data.location
+            );
+        }
+        
+        document.getElementById('micForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             let organization = document.getElementById('organization').value;
@@ -717,6 +813,10 @@
                 }
                 editingId = null;
             } else {
+                if (isDuplicate(data)) {
+                    showNotification('ข้อมูลนี้ถูกบันทึกไว้แล้ว ไม่สามารถบันทึกซ้ำได้', 'error');
+                    return;
+                }
                 dataList.push(data);
             }
             
@@ -728,7 +828,49 @@
             showNotification(editingId ? 'แก้ไขข้อมูลเรียบร้อยแล้ว' : 'บันทึกข้อมูลเรียบร้อยแล้ว', 'success');
             clearForm();
             updateCount();
+            
+            const sendSuccess = await sendToGoogleSheets([data]);
+            if (sendSuccess) {
+                showPopup('บันทึกข้อมูลสำเร็จ', 'ข้อมูลถูกบันทึกไปยัง Google Sheet เรียบร้อยแล้ว');
+            }
         });
+        
+        async function sendToGoogleSheets(items) {
+            if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'YOUR_SCRIPT_URL_HERE') {
+                return false;
+            }
+            
+            if (!items || items.length === 0) {
+                return false;
+            }
+            
+            try {
+                const payload = {
+                    data: items.map(item => ({
+                        organization: item.organization || '',
+                        contactName: item.contactName || '',
+                        brand: item.brand || '',
+                        model: item.model || '',
+                        year: (parseInt(item.year) + 543).toString(),
+                        frequency: item.frequency || '',
+                        location: item.location || '',
+                        date: new Date().toLocaleDateString('th-TH'),
+                        id: (item.id || '').toString().trim()
+                    }))
+                };
+                
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(payload)
+                });
+                
+                return true;
+            } catch (error) {
+                console.error('Send to Google Sheets error:', error);
+                return false;
+            }
+        }
         
         function autoFillLastData() {
             const lastOrg = localStorage.getItem('lastOrganization');
@@ -751,12 +893,34 @@
             autoFillLastData();
         }
         
+        async function deleteFromGoogleSheets(id) {
+            if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'YOUR_SCRIPT_URL_HERE') {
+                return false;
+            }
+            
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify({
+                        action: 'delete',
+                        id: (id || '').toString().trim()
+                    })
+                });
+                return true;
+            } catch (error) {
+                console.error('Delete from Google Sheets error:', error);
+                return false;
+            }
+        }
+        
         function deleteItem(id) {
             if (confirm('คุณต้องการลบข้อมูลนี้ใช่หรือไม่?')) {
                 dataList = dataList.filter(item => item.id !== id);
                 localStorage.setItem('micDataList', JSON.stringify(dataList));
                 renderDataList();
                 updateCount();
+                deleteFromGoogleSheets(id);
                 showNotification('ลบข้อมูลเรียบร้อยแล้ว', 'success');
             }
         }
@@ -836,45 +1000,18 @@
             document.getElementById('count').textContent = dataList.length;
         }
         
-        function updateStats() {
-            document.getElementById('totalCount').textContent = dataList.length;
+        function showPopup(title, message) {
+            document.getElementById('popupTitle').textContent = title;
+            document.getElementById('popupMessage').textContent = message;
+            document.getElementById('popupOverlay').classList.add('active');
         }
         
-        async function syncToGoogleSheets() {
-            if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL === 'YOUR_SCRIPT_URL_HERE') {
-                showNotification('กรุณาตั้งค่า Google Apps Script URL ในโค้ดก่อน', 'error');
-                return;
-            }
-            
-            if (dataList.length === 0) {
-                showNotification('ไม่มีข้อมูลให้ส่งออก', 'error');
-                return;
-            }
-            
-            try {
-                showNotification('กำลังส่งข้อมูลไป Google Sheets...', 'success');
-                
-                const response = await fetch(GOOGLE_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify({
-                        data: dataList.map(item => [
-                            item.organization,
-                            item.contactName,
-                            item.brand,
-                            item.model,
-                            parseInt(item.year) + 543,
-                            item.frequency,
-                            item.location,
-                            new Date(item.createdAt).toLocaleDateString('th-TH')
-                        ])
-                    })
-                });
-                
-                showNotification(`ส่งข้อมูล ${dataList.length} รายการสำเร็จ!`, 'success');
-            } catch (error) {
-                showNotification('เกิดข้อผิดพลาด: ' + error.message, 'error');
-            }
+        function closePopup() {
+            document.getElementById('popupOverlay').classList.remove('active');
+        }
+        
+        function updateStats() {
+            document.getElementById('totalCount').textContent = dataList.length;
         }
         
         document.addEventListener('click', function(e) {
